@@ -7,9 +7,11 @@
         <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
         <link rel="stylesheet" type="text/css" href="css/normalize.css" media="screen">
         <link rel="stylesheet" type="text/css" href="css/style.css" media="screen">
+        <link rel="stylesheet" type="text/css" href="css/prism.css">
         <script type="text/javascript" src="js/jquery.min.js"></script>
         <script type="text/javascript" src="js/webuploader.min.js"></script>
         <script type="text/javascript" src="js/upload.js"></script>
+        <script type="text/javascript" src="js/prism.js"></script>
     </head>
     <body>
         <section class="page-header">
@@ -55,15 +57,32 @@
                   });
               });
           </script>
-          <div>
-              调用方式
-          </div>
-        </section>
-        <footer class="site-footer">
+            <section style="margin-bottom:30px;">
+                <div>
+                    JAVASCRIPT
+                </div>
+                <pre>
+                    <code class="language-javascript">$(document).ready(function(){
+                        //多文件上传实例，不限制文件类型
+                        attachPool.add({
+                          form: {
+                            businessId: $('#id').val(),
+                            businessTable: 'toa_im_info',
+                            category: 'picList2'
+                          },
+                          isEcho: false
+                        });
+                    });
+                    </code>
+                </pre>
+            </section>
+            <footer class="site-footer">
             <span class="site-footer-credits">© http://jcjgb.github.io/WebUpload 版权所有：长春嘉诚信息     
                 <script type="text/javascript">var cnzz_protocol = (("https:" == document.location.protocol) ? " https://" : " http://");document.write(unescape("%3Cspan id='cnzz_stat_icon_1256008276'%3E%3C/span%3E%3Cscript src='" + cnzz_protocol + "s95.cnzz.com/z_stat.php%3Fid%3D1256008276%26show%3Dpic2' type='text/javascript'%3E%3C/script%3E"));</script>
             </span>
         </footer>
+        </section>
+        
         
     </body>
 </html>

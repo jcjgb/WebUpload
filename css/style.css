@@ -185,6 +185,7 @@ table {
     height: 8px;
     overflow: hidden;
     z-index: 50;
+    margin:0;
 }
 .attach .filelist li p.progress span {
     display: none;

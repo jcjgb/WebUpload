@@ -1763,22 +1763,25 @@
             },
     
             refresh: function() {
-                var shimContainer = this.getRuntime().getContainer(),
-                    button = this.options.button,
-                    width = button.outerWidth ?
-                            button.outerWidth() : button.width(),
-    
-                    height = button.outerHeight ?
-                            button.outerHeight() : button.height(),
-    
-                    pos = button.offset();
-    
-                width && height && shimContainer.css({
-                    bottom: 'auto',
-                    right: 'auto',
-                    width: width + 'px',
-                    height: height + 'px'
-                }).offset( pos );
+            	var self = this;
+            	setTimeout(function(){
+            		var shimContainer = self.getRuntime().getContainer(),
+	                    button = self.options.button,
+	                     width = button.outerWidth ?
+	                             button.outerWidth() : button.width(),
+	     
+	                     height = button.outerHeight ?
+	                             button.outerHeight() : button.height(),
+	     
+	                     pos = button.offset();
+	     
+	                 width && height && shimContainer.css({
+	                     bottom: 'auto',
+	                     right: 'auto',
+	                     width: width + 'px',
+	                     height: height + 'px'
+	                 }).offset( pos );
+            	},350);
             },
     
             enable: function() {

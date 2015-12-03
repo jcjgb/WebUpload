@@ -1,9 +1,3 @@
-function getRootPath(){
-    var path = window.location.href;
-    return path;
-}
-
-
 var attachPool = {};
 attachPool.pushUpload = (function(delay){
     var pools = [] , 
@@ -12,7 +6,8 @@ attachPool.pushUpload = (function(delay){
         var runner = pools.shift();
         if( runner ){
             setTimeout( function(){
-                  runner( walk );
+            	if(!pools.length) isRunning = false;
+                runner( walk );
             } , delay );  
         }
     }
@@ -37,10 +32,32 @@ attachPool.add = function(options){
 		new AttachUploader(options);
         routine();
     });
-}
+};
+/**
+ * 查询已上传附件
+ * @Examples
+ * attachPool.getUploaded({
+ * 		form : {
+ * 		 	businessId: $('#id').val(),
+ *        	businessTable: 'toa_im_info',
+ *        	category: 'portal1'
+ * 		},
+ * 		iscopy : 1    //可不填写，默认0
+ * },function(files){
+ *      alert("查询到的结果集");
+ * });
+ */
+attachPool.getUploaded = function(option,callback){
+	if(option){
+		AttachUploader.getList(option,callback);
+	}
+};
 /**
  * 获取当前页面所有已上传附件
  * 若无符合webupload上传文件的变量则返回 null
+ * @Examples
+ *  var files = attachPool.getFiles();
+ *  if(files) formData.push({"name": "fileids", "value": files });
  */
 attachPool.getFiles = function(){
 	var inputs = document.getElementsByTagName("input"),
@@ -49,6 +66,44 @@ attachPool.getFiles = function(){
 	    if(inputs[i].name == 'fileid') reflut.push(inputs[i].value);
 	}
 	return reflut.length?reflut:null;
+};
+/**
+ * 文件转换字节
+ * @param  {[type]} num [文件字节数]
+ * @Examples
+ * var size = attachPool.roundSize(233021);
+ * onsole.log(size); //227.56 KB
+ */
+attachPool.roundSize = function(num){
+    var digits = 2,
+        number = num / 1024;
+    var result =  Math.round(number*Math.pow(10,digits))/Math.pow(10,digits);
+    if(result > 1024){
+        number = result / 1024;
+        return Math.round(number*Math.pow(10,digits))/Math.pow(10,digits)+' M';
+    }else{
+        return result+' KB';
+    }
+};
+/**
+ * 清空文件队列
+ * @param id      容器id，用于获取当前upload对象
+ */
+attachPool.clearFileQueue = function(id){
+	var upload = AttachUploader.getUploadPool(id);
+	if(upload){
+		var files = upload.getFiles();
+		if(files.length){
+			for(var i = 0; i < files.length;i++){
+				var file = files[i];
+				upload.removeFile(file,true);
+			}
+		}
+	}
+};
+
+attachPool.getUploadInstance = function(key){
+	return AttachUploader.uploadPool[key] || null;
 }
 /**
  * AttachUploader   上传附件类
@@ -67,11 +122,20 @@ attachPool.getFiles = function(){
  * @param	accept				限制上传格式参数										默认 null 不限制
  * @param	addButton			添加按钮的id和label									默认 
  * 								默认 {id:"#filePickerBtn",label:"继续添加"}  fileNumLimit为1的时候无需添加此参数
+ * @param   server				上传文件服务器地址									默认 upload.action
  * @param	listId				页面列表容器的id										默认 #attachList
  * @param	isEcho				是否要回显附件										默认 false
  * @param	toButtonView		按钮点击无响应处理									默认 null
  * 			按钮点击无响应仅限于当前页面单独弹出的情况下，如邮件的转发，回复,或者多个弹出层等。。
  * 			参数应对应页面附件按钮的id，即点击页面附件按钮待弹出层出现后再次计算上传附件按钮的宽高
+ * @param	error				删除回调事件
+ * 			error : function(id,name){
+ * 				id    = 当前附件的id
+ * 				name  = 当前附件的name
+ * 			}
+ * @param	success				上传成功回调事件 调用方式同上
+ * @param	ready				插件加载完成回调
+ * @param	drawPage			页面绘制函数，如添加原有点击上传按钮页面加载列表将不再执行
  */
 !(function($){
 function AttachUpload(options) {
@@ -88,10 +152,17 @@ function AttachUpload(options) {
 				accept			: null,
 				iscopy			: 0,
 				dndArea			: '#dndArea',
+				server			: getRootPath() + '/content/attach/upload.action',
 				falg 			: true,
 				isEcho			: false,
-				toButtonView	: null
-		}
+				showFileSize   	: false,
+				toButtonView	: null,
+				success			: null,
+				delCallback		: null,
+				ready			: null,
+				drawPage		: null,
+				queueStyle      : 'default'
+		};
 	var opt = $.extend({}, defult, options);
 	this.initialize(opt);
 }
@@ -103,11 +174,11 @@ AttachUpload.uploadPool = [];
 //upload  SET方法
 AttachUpload.setUploadPool = function(key,value){
 	AttachUpload.uploadPool[key] = value;
-}
+};
 //upload  GET方法
 AttachUpload.getUploadPool = function(key){
 	return AttachUpload.uploadPool[key];
-}
+};
 
 AttachUpload.prototype = {
 	/**
@@ -240,6 +311,7 @@ AttachUpload.prototype = {
 	   AttachUpload.setUploadPool(option.containerId,such.uploader);
        such.addOnEvent(such.uploader,option);
        if(option.isEcho) AttachUpload.getList(option);
+       setTimeout(function(){if(typeof option.ready === 'function') option.ready.call(null);},0);
 	},
 	/**
 	 * 创建webupload对象
@@ -258,10 +330,10 @@ AttachUpload.prototype = {
             },
             dnd: option.dndArea,
             paste: option.uploadInitId,
-            swf: '../Uploader.swf',
+            swf: '../../js/ueditor/third-party/webuploader/Uploader.swf',
             chunked: false,
             chunkSize: 512 * 1024,
-            server: getRootPath() + '/upload.action',
+            server: option.server,
             // runtimeOrder: 'flash',
 
             accept: option.accept,
@@ -276,6 +348,15 @@ AttachUpload.prototype = {
 	},
 	addFile : function(file,instance){
 		var such = this;
+		
+		var suffix = (function(){
+			var str = file.name.substring(file.name.lastIndexOf('.') + 1);
+			if(str.length > 4){
+				str = str.substring(0,4);
+			}
+			return str;
+		})();
+		
 		var $li = $('<li id="' + file.id + '" class="'+file.id+'">' +
                     	'<p class="title">' + file.name + '</p>' +
                     	'<p class="imgWrap"></p>'+
@@ -294,7 +375,6 @@ AttachUpload.prototype = {
                         break;
                     default:
                         text = '上传失败，请重试';
-                        $btns.height(28);
                         break;
                 }
                 $info.text( text ).appendTo( $li );
@@ -315,7 +395,8 @@ AttachUpload.prototype = {
                             $wrap.empty().append( img );
                 		}
             		}else{
-            			$wrap.text( '不能预览' );
+            			if(such.option.queueStyle === 'block') $li.addClass('dontImg');
+            			$wrap.text(suffix);
             		}
             		$btns.height(30);
             		AttachUpload.getUploadPool(instance).skipFile(file);
@@ -325,7 +406,7 @@ AttachUpload.prototype = {
             		 $wrap.text( '预览中' );
             		 AttachUpload.getUploadPool(instance).makeThumb( file, function( error, src ) {
                          var img;
-                         if ( error ) { $wrap.text( '不能预览' );  return; }
+                         if ( error ) { $wrap.text(suffix);if(such.option.queueStyle === 'block') $li.addClass('dontImg');  return; }
                          if( such.isSupportBase64 ) {
                              img = $('<img src="'+src+'">');
                              $wrap.empty().append( img );
@@ -389,13 +470,15 @@ AttachUpload.prototype = {
             $li.appendTo( such.$queue );
 	},
 	removeFile : function(file){
+		var such = this;
 		var $li = $('#'+file.id);
-        delete this.percentages[ file.id ];
-        this.updateTotalProgress();
+        delete such.percentages[ file.id ];
+        such.updateTotalProgress();
         $li.off().find('.file-panel').off().end().remove();
         //同步删除外部附件
-        if($("#up"+file.id))
-        	$("#up"+file.id).remove();
+        if($("#up"+file.id)) $("#up"+file.id).remove();
+        var del = such.option.delCallback;
+        if(typeof del === 'function') del.call(undefined,file.id,file.name);
 	},
 	updateTotalProgress : function(){
 		var such = this,
@@ -416,7 +499,7 @@ AttachUpload.prototype = {
 	updateStatus : function(){
 		var such = this,text = '', stats;
         if ( such.state === 'ready' ) {
-            text = '选中' + such.fileCount + '张图片。';
+            text = '选中' + such.fileCount + '个文件。';
         }else {
             stats = such.uploader.getStats();
             text = '共' + such.fileCount + '张';
@@ -470,6 +553,7 @@ AttachUpload.prototype = {
             case 'finish':
                 stats = such.uploader.getStats();
                 if ( stats.successNum ) {
+                	//上传成功
                 	such.$queue.find(".file-panel").height(30);
                 } else {
                     // 没有成功的图片，重设
@@ -492,7 +576,6 @@ AttachUpload.prototype = {
                 i = 0,
                 // 修改js类型
                 unAllowed = 'text/plain;application/javascript ';
-
             for ( ; i < len; i++ ) {
                 // 如果在列表里面
                 if ( ~unAllowed.indexOf( items[ i ].type ) ) {
@@ -500,10 +583,8 @@ AttachUpload.prototype = {
                     break;
                 }
             }
-
             return !denied;
         });
-
         // 添加“添加文件”的按钮，
         if(opt.fileNumLimit > 1){
         	load.addButton({
@@ -511,16 +592,18 @@ AttachUpload.prototype = {
                 label: opt.addButton.label
             });
         }
-//        load.on('ready', function() {
-//            window.uploader = uploader;
-//        });
-
         /**
          * 监听上传成功
          */
         load.on( 'uploadSuccess', function( file, response ) {
         	var relt = JSON.parse(response._raw);
-        	AttachUpload.showAttachList(true,relt.files[0],file,opt.listId,opt.containerId);
+        	if(typeof opt.drawPage === 'function'){
+        		opt.drawPage.call(null,relt.files[0],file);
+			}else{
+				AttachUpload.showAttachList(opt.falg,relt.files[0],file,opt.listId,opt.containerId,opt.showFileSize);
+			}
+        	var successBack = such.option.success;
+        	if(typeof successBack === 'function') successBack.call(undefined,file.id,file.name);
         });
 
         load.on( 'all', function( type ) {
@@ -584,9 +667,15 @@ AttachUpload.prototype = {
         
         load.onError = function( code ) {
         	if('F_DUPLICATE' == code)
-        		alert("图片上传重复");
+        		msgBox.tip({
+        			type:'fail',//图片上传重复
+        			content:'\u6587\u4ef6\u4e0a\u4f20\u91cd\u590d'
+        		});
         	else if("Q_EXCEED_NUM_LIMIT" == code)
-        		alert("超出最大数");
+        		msgBox.tip({
+        			type:'fail',//超出最大数量
+        			content:'\u8d85\u51fa\u6700\u5927\u6570'
+        		});
         	else
         		alert( 'Eroor: ' + code );
         };
@@ -613,6 +702,7 @@ AttachUpload.prototype = {
         such.$info.on( 'click', '.ignore', function() {
             alert( 'todo' );
         } );
+        
         if(opt.toButtonView){
         	$(document).on("click",opt.toButtonView,function(){
             	setTimeout(function(){
@@ -620,21 +710,22 @@ AttachUpload.prototype = {
             	},310);
             });
         }
+        
         such.$upload.addClass( 'state-' + such.state );
         such.updateTotalProgress();
 	}
-}
+};
 /**
  * [getList 获得已上传的附件]
  * @param   =>  是否显示按钮X
  * @return  =>  undefined
  */
-AttachUpload.getList = function(option) {
+AttachUpload.getList = function(option,callback) {
 	//var isshow = $("#isshow").val();
 	var businessId = option.form.businessId;
 	var businessTable = option.form.businessTable;
 	var category = option.form.category;
-	var iscopy = option.iscopy;
+	var iscopy = option.iscopy || 0;
 	var url = getRootPath() + "/content/attach/attachlist.action";
 	if (iscopy == "1") { //转发文复制附件
 		url = getRootPath() + "/content/attach/copyAttachlist.action";
@@ -654,31 +745,39 @@ AttachUpload.getList = function(option) {
 		async: false,
 		success: function(data) {
 			if (data.files.length) {
-				var relt = [],
+				if(typeof callback === 'function'){
+					callback.call(undefined,data.files);
+				}else{
+					var relt = [],
 					eachFile = data.files,
 					uploadx;
-				$.each(eachFile, function(i, o) {
-					relt.push({
-						name: o.fileName,
-						size: o.fileSize,
-						url: getRootPath() + "/upload/attach/" + o.resourcesName,
-						type: 'image/jpeg',
-						lastModified: +new Date(),
-						lastModifiedDate: new Date(),
-						webkitRelativePath: ""
+					$.each(eachFile, function(i, o) {
+						relt.push({
+							name: o.fileName,
+							size: o.fileSize,
+							url: getRootPath() + "/upload/attach/" + o.resourcesName,
+							type: 'image/jpeg',
+							lastModified: +new Date(),
+							lastModifiedDate: new Date(),
+							webkitRelativePath: ""
+						});
 					});
-				});
-				uploadx = AttachUpload.getUploadPool(option.containerId);
-				uploadx.addFiles(uploadx.addEchoFile(relt));
-				
-				var ary = uploadx.getFiles();
-				$.each(eachFile, function(i, o) {
-					AttachUpload.showAttachList(option.falg, eachFile[i], ary[i],option.listId,option.containerId);
-				});
+					uploadx = AttachUpload.getUploadPool(option.containerId);
+					uploadx.addFiles(uploadx.addEchoFile(relt));
+					
+					var ary = uploadx.getFiles();
+					$.each(eachFile, function(i, o) {
+						if(typeof option.drawPage === 'function'){
+							option.drawPage.call(null,eachFile[i], ary[i]);
+						}else{
+							AttachUpload.showAttachList(option.falg, eachFile[i], ary[i],option.listId,option.containerId,option.showFileSize);
+						}
+					});
+				}
 			}
 		}
 	});
-}
+};
 /**
  * [删除附件扩展方法（点击页面x调用）]
  * @param  {[String]}    fileid    		[文件输出在页面上的ID]
@@ -697,33 +796,44 @@ AttachUpload.asynDel = function(fileid, key,instance) {
 			}
 		}
 	});
-}
-
-AttachUpload.showAttachList = function(flag, file, webfile,listId,instance){
+};
+function roundSize(num){
+	var digits = 2,
+		number = num / 1024;
+    var result =  Math.round(number*Math.pow(10,digits))/Math.pow(10,digits);
+    if(result > 1024){
+    	number = result / 1024;
+    	return Math.round(number*Math.pow(10,digits))/Math.pow(10,digits)+' M';
+    }else{
+    	return result+' KB';
+    }
+} 
+AttachUpload.showAttachList = function(flag, file, webfile,listId,instance,size){
 	var str = "",
 		aList = $(listId);
 	if(typeof file != "undefined"){
 		if(file.category.indexOf("Img") != -1){
 			var eUrl = getRootPath()+"/upload/attach/"+file.resourcesName;
 			$("#"+file.category+"File").remove();
-			$("#"+file.category).attr("src",eUrl).after("<input type='hidden' id='"+file.category+"File' name='fileid' value='"+file.id+"'>");
+			$("#"+file.category).attr("src",eUrl).after("<input type='hidden' id='"+file.category+"File' name='fileid' value='"+file.id+"' path='upload/attach/"+file.resourcesName+"'>");
 		}else{
 			var dUrl = getRootPath()+file.url+"?fileName="+encodeURIComponent(encodeURIComponent(file.fileName))+"&resourcesName="+file.resourcesName;
-			if (flag == true){
+			if (flag){
 				AttachUpload.fileObjArray[webfile.id] = webfile;
 				str += "<li id=\"up"+webfile.id+"\"><a href='" + dUrl
 					+ "'><i class='fa fa-paper-clip m-r-sm'></i>"
-					+ file.fileName + "</a>&nbsp;&nbsp;"
+					+ file.fileName + "</a>&nbsp;"+(size?roundSize(file.fileSize):'')+"&nbsp;"
 					+ "<input type='hidden' name='fileid' value='"+file.id+"' />"
 					+ '<a href="#" style="margin-left:15px;" onclick=\'AttachUploader.asynDel("'+file.id+'","'+webfile.id+'","'+instance+'");\'>x</a></li>';
 			}else{
-				str += "<li><a href='" + dUrl
-					+ "'><i class='fa fa-paper-clip m-r-sm'></i>"
-					+ file.fileName + "</a>&nbsp;&nbsp;</li>";
+				str += "<li id=\"up"+webfile.id+"\">"
+					+ "<input type='hidden' name='fileid' value='"+file.id+"' />"
+					+"<a href='" + dUrl + "'><i class='fa fa-paper-clip m-r-sm'></i>"
+					+ file.fileName + "</a>&nbsp;&nbsp;&nbsp; "+(size?roundSize(file.fileSize):'')+"</li>";
 			}
-			aList.prepend(str);
+			aList.append(str);
 		}
 	}
-}
+};
 window.AttachUploader = AttachUpload;
 })(jQuery);

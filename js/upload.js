@@ -36,7 +36,7 @@ attachPool.add = function(options){
 /**
  * 查询已上传附件
  * @Examples
- * attachPool.getUploaded({
+ * attachPool.getUploadeder({
  * 		form : {
  * 		 	businessId: $('#id').val(),
  *        	businessTable: 'toa_im_info',
@@ -47,7 +47,7 @@ attachPool.add = function(options){
  *      alert("查询到的结果集");
  * });
  */
-attachPool.updateUpload = function(option,callback){
+attachPool.updateUploader = function(option,callback){
 	if(option){
 		AttachUploader.getList(option,callback);
 	}
@@ -102,7 +102,7 @@ attachPool.clearFileQueue = function(id){
 	}
 };
 
-attachPool.getUploadInstance = function(key){
+attachPool.getUploader = function(key){
 	return AttachUploader.uploadPool[key] || null;
 }
 /**

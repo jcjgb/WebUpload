@@ -47,7 +47,7 @@ attachPool.add = function(options){
  *      alert("查询到的结果集");
  * });
  */
-attachPool.getUploaded = function(option,callback){
+attachPool.updateUpload = function(option,callback){
 	if(option){
 		AttachUploader.getList(option,callback);
 	}
@@ -71,10 +71,10 @@ attachPool.getFiles = function(){
  * 文件转换字节
  * @param  {[type]} num [文件字节数]
  * @Examples
- * var size = attachPool.roundSize(233021);
+ * var size = attachPool.formatSize(233021);
  * onsole.log(size); //227.56 KB
  */
-attachPool.roundSize = function(num){
+attachPool.formatSize = function(num){
     var digits = 2,
         number = num / 1024;
     var result =  Math.round(number*Math.pow(10,digits))/Math.pow(10,digits);
